@@ -1,11 +1,11 @@
-## Vizly Studio — Pixel-Faithful Landing Page
+## nutriX Restro — Pixel-Faithful Landing Page
 
 Build a single dark-themed landing page that matches your screenshots exactly, with a premium animated background and modern hover interactions.
 
 ### Page sections (top to bottom)
 
 1. **Sticky top navigation**
-   - Left: "Vizly Studio" wordmark
+   - Left: "nutriX Restro" wordmark
    - Center: Features (active, with blue underline), Charts, Docs, Solutions
    - Right: dark "Login" pill button + blue→purple gradient "Start Creating" button
    - Subtle blur/translucent background that intensifies on scroll
@@ -30,10 +30,10 @@ Build a single dark-themed landing page that matches your screenshots exactly, w
    - White "Create Your First Viz" button + dark "Watch Demo" button
 
 5. **Footer**
-   - Brand block (Vizly Studio + tagline) on the left
+   - Brand block (nutriX Restro + tagline) on the left
    - Four columns: PRODUCT, RESOURCES, COMPANY, SOCIAL
    - Giant faded "Vizly" watermark behind the columns
-   - Bottom row: "© 2026 Vizly Studio. All systems operational." and Privacy / Terms links
+   - Bottom row: "© 2026 nutriX Restro. All systems operational." and Privacy / Terms links
 
 ### Visuals & motion
 
@@ -55,7 +55,7 @@ Build a single dark-themed landing page that matches your screenshots exactly, w
 
 - All content lives on `/` (`src/routes/index.tsx`), replacing the placeholder.
 - Nav and footer links render as styled anchors (no extra routes) so the page matches the screenshots without dead-end stubs. Easy to upgrade to real routes later.
-- Update `__root.tsx` meta: title "Vizly Studio — Turn Data into Intelligent Visual Stories" and matching description / OG tags.
+- Update `__root.tsx` meta: title "nutriX Restro — Turn Data into Intelligent Visual Stories" and matching description / OG tags.
 
 ### Out of scope (can add later)
 

@@ -9,17 +9,17 @@ import { SignupPopover } from "@/components/site/SignupPopover";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Sign in — Vizly Studio" },
+      { title: "Sign in — nutriX Restro" },
       {
         name: "description",
         content:
-          "Sign in to Vizly Studio to access your dashboards, charts, and data workflows.",
+          "Sign in to nutriX Restro to access your dashboards, charts, and data workflows.",
       },
-      { property: "og:title", content: "Sign in — Vizly Studio" },
+      { property: "og:title", content: "Sign in — nutriX Restro" },
       {
         property: "og:description",
         content:
-          "Sign in to Vizly Studio to access your dashboards, charts, and data workflows.",
+          "Sign in to nutriX Restro to access your dashboards, charts, and data workflows.",
       },
     ],
   }),
@@ -79,7 +79,7 @@ function LoginPage() {
             to="/"
             className="text-base font-semibold tracking-tight text-foreground transition-opacity hover:opacity-90"
           >
-            Vizly Studio
+            nutriX Restro
           </Link>
           <Link
             to="/"
@@ -101,7 +101,7 @@ function LoginPage() {
                   <Activity className="h-6 w-6 text-primary-foreground" />
                 </div>
                 <h1 className="mt-5 text-2xl font-semibold tracking-tight text-foreground">
-                  Vizly Studio
+                  nutriX Restro
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Enter your credentials to continue
@@ -202,7 +202,7 @@ function LoginPage() {
         </div>
 
         <footer className="flex flex-col items-center justify-between gap-3 py-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© 2024 Vizly Studio. All systems operational.</p>
+          <p>© 2026 nutriX Restro. All systems operational.</p>
           <div className="flex items-center gap-5">
             <a href="#" className="transition-colors hover:text-foreground">
               Terms of Service

@@ -68,7 +68,7 @@ export const PromptBar = ({ onSend }: PromptBarProps) => {
         </div>
 
         <p className="text-[10px] text-muted-foreground text-center mt-2 opacity-60">
-          Vizly Studio may produce inaccurate information. Verify important results.
+          nutriX Restro may produce inaccurate information. Verify important results.
         </p>
       </div>
     </div>

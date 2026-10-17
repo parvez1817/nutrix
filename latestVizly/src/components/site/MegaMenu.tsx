@@ -54,41 +54,30 @@ export const megaMenus: MegaMenuContent[] = [
   },
   {
     key: "charts",
-    label: "Charts",
+    label: "Models",
     panel: {
-      title: "Charts",
-      tagline: "A complete library of modern, animated charts for every kind of data story.",
-      cta: "Browse Charts",
+      title: "Models",
+      tagline: "A complete set of visuals showing exactly how NutriX's protein model was trained, tested, and validated.",
+      cta: "Browse Models",
     },
     groups: [
       {
-        heading: "Basic Charts",
+        heading: "Model Performance",
         items: [
-          { title: "Line Chart", description: "Track values over time." },
-          { title: "Bar Chart", description: "Compare categories at a glance." },
-          { title: "Horizontal Bar Chart", description: "Long labels, clean comparison." },
-          { title: "Area Chart", description: "Volume and momentum across time." },
-          { title: "Stacked Area Chart", description: "Composition trends over time." },
+          { title: "Predicted vs Actual", description: "How close our protein estimates land to real values." },
+          { title: "Residual Plot", description: "Where the model over- or under-predicts." },
+          { title: "Error Distribution", description: "Spread of prediction errors across the dataset." },
+          { title: "Feature Importance", description: "Which words drive the protein estimate most." },
+          { title: "Model Comparison", description: "Ridge vs Random Forest vs Gradient Boosting, side by side." },
         ],
       },
       {
-        heading: "Distribution & Comparison",
+        heading: "Dataset Insights",
         items: [
-          { title: "Pie Chart", description: "Share of a whole at a glance." },
-          { title: "Donut Chart", description: "Pie chart with a focal center." },
-          { title: "Histogram", description: "Distribution of numeric values." },
-          { title: "Box Plot", description: "Quartiles, median, and outliers." },
-          { title: "Violin Plot", description: "Density + distribution combined." },
-        ],
-      },
-      {
-        heading: "Advanced Visuals",
-        items: [
-          { title: "Scatter Plot", description: "Correlation between two variables." },
-          { title: "Bubble Chart", description: "Three dimensions of data at once." },
-          { title: "Heatmap", description: "Intensity across two dimensions." },
-          { title: "Treemap", description: "Hierarchical proportions in tiles." },
-          { title: "Sunburst Chart", description: "Multi-level hierarchical data." },
+          { title: "Training Distribution", description: "Spread of protein values across all 200 food items." },
+          { title: "Category Breakdown", description: "Non-veg, veg, dairy, and snacks represented in the data." },
+          { title: "Price vs Protein", description: "Relationship between cost and protein content." },
+          { title: "Serving Size Spread", description: "Distribution of portion sizes in the dataset." },
         ],
       },
     ],
@@ -98,7 +87,7 @@ export const megaMenus: MegaMenuContent[] = [
     label: "Docs",
     panel: {
       title: "Docs",
-      tagline: "Guides, references, and best practices to get the most out of Vizly.",
+      tagline: "Guides, references, and best practices to get the most out of NutriX.",
       cta: "Open Docs",
     },
     groups: [
@@ -106,23 +95,23 @@ export const megaMenus: MegaMenuContent[] = [
         items: [
           {
             title: "Quick Start Guide",
-            description: "Get up and running with Vizly in minutes.",
+            description: "Get up and running with NutriX in minutes.",
           },
           {
-            title: "Data Upload & Formatting",
-            description: "Supported file types and best practices for clean data.",
+            title: "Menu Input & Formatting",
+            description: "Supported formats and best practices for entering food items.",
           },
           {
-            title: "Chart Customization",
-            description: "Learn how to tweak visuals, colors, and layouts.",
+            title: "Recommendation Customization",
+            description: "Learn how to adjust protein goals, budget limits, and dietary preferences.",
           },
           {
-            title: "AI Insights Explained",
-            description: "Understand how AI generates reports and predictions.",
+            title: "AI Predictions Explained",
+            description: "Understand how the ML model estimates protein for unseen menu items.",
           },
           {
             title: "Export & Sharing Guide",
-            description: "Steps to download, embed, or share your dashboards.",
+            description: "Steps to save, download, or share your meal recommendations.",
           },
         ],
       },
@@ -159,10 +148,10 @@ export const megaMenus: MegaMenuContent[] = [
             title: "Corporate Wellness Programs",
             description: "Empower employees to make healthier lunch choices aligned with their fitness goals.",
           },
-          {
-            title: "Meal Prep Planning",
-            description: "Generate weekly meal strategies that balance nutrition, cost, and variety.",
-          },
+          // {
+          //   title: "Meal Prep Planning",
+          //   description: "Generate weekly meal strategies that balance nutrition, cost, and variety.",
+          // },
         ],
       },
     ],

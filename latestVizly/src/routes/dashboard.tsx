@@ -5,6 +5,13 @@ import { Sidebar } from "@/components/dashboard/Sidebar";
 import { PromptBar } from "@/components/dashboard/PromptBar";
 import { ChatArea, type ChatMessage } from "@/components/dashboard/ChatArea";
 import { loadNutrixPayload } from "@/lib/nutrix";
+import { useAuth } from "@/hooks/use-auth";
+import {
+  createConversationApi,
+  listConversationsApi,
+  updateConversationApi,
+  type ConversationSummary,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -20,9 +27,61 @@ let msgIdCounter = 0;
 
 function DashboardPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
   const hasStartedRef = useRef(false);
+  const messagesRef = useRef<ChatMessage[]>([]);
+  const conversationIdRef = useRef<string | null>(null);
+  const { user, hydrated } = useAuth();
+
+  const refreshConversations = useCallback(async () => {
+    if (!user?.email) return;
+    setConversationsLoading(true);
+    try {
+      setConversations(await listConversationsApi(user.email));
+    } catch {
+      setConversations([]);
+    } finally {
+      setConversationsLoading(false);
+    }
+  }, [user?.email]);
+
+  const persistConversation = useCallback(async (nextMessages: ChatMessage[]) => {
+    if (!user?.email || nextMessages.length === 0) return;
+
+    const title = nextMessages.find((message) => message.role === "user")?.content
+      .split("\n")[0]
+      .slice(0, 60) || "New conversation";
+    const savedMessages = nextMessages.map(({ role, content }) => ({ role, content }));
+
+    try {
+      if (conversationIdRef.current) {
+        await updateConversationApi({
+          id: conversationIdRef.current,
+          email: user.email,
+          title,
+          messages: savedMessages,
+        });
+      } else {
+        const created = await createConversationApi({
+          email: user.email,
+          title,
+          messages: savedMessages,
+        });
+        conversationIdRef.current = created.id;
+      }
+      await refreshConversations();
+    } catch (error) {
+      console.error("Failed to save conversation", error);
+    }
+  }, [refreshConversations, user?.email]);
 
   useEffect(() => {
+    if (hydrated && user?.email) void refreshConversations();
+  }, [hydrated, refreshConversations, user?.email]);
+
+  useEffect(() => {
+    if (!hydrated || !user?.email) return;
     if (hasStartedRef.current) return;
     hasStartedRef.current = true;
 
@@ -49,7 +108,9 @@ function DashboardPage() {
       timestamp: new Date(),
     };
     
-    setMessages([userMsg, initialAssistantMsg]);
+    const initialMessages = [userMsg, initialAssistantMsg];
+    messagesRef.current = initialMessages;
+    setMessages(initialMessages);
 
     const runOptimization = async () => {
       try {
@@ -117,6 +178,13 @@ function DashboardPage() {
                       ? { ...m, content: finalContent } 
                       : m
                   ));
+                } else if (currentEvent === "error") {
+                  finalContent = (data as { message: string }).message;
+                  setMessages(prev => prev.map(m =>
+                    m.id === assistantMsgId
+                      ? { ...m, content: finalContent }
+                      : m
+                  ));
                 }
               } catch {
                 /* ignore parse errors */
@@ -124,13 +192,20 @@ function DashboardPage() {
             }
           }
         }
+
+        if (finalContent) {
+          const completedMessages = [userMsg, { ...initialAssistantMsg, content: finalContent }];
+          messagesRef.current = completedMessages;
+          setMessages(completedMessages);
+          await persistConversation(completedMessages);
+        }
       } catch (err: unknown) {
          setMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: "Error processing the optimization request." } : m));
       }
     };
 
     runOptimization();
-  }, []);
+  }, [hydrated, persistConversation, user?.email]);
 
   const handleSend = useCallback(async (text: string) => {
     // Add user message
@@ -141,12 +216,9 @@ function DashboardPage() {
       timestamp: new Date(),
     };
     
-    // Optimistically update UI and get reference to messages including new msg
-    let updatedMessages: ChatMessage[] = [];
-    setMessages((prev) => {
-      updatedMessages = [...prev, userMsg];
-      return updatedMessages;
-    });
+    const updatedMessages = [...messagesRef.current, userMsg];
+    messagesRef.current = updatedMessages;
+    setMessages(updatedMessages);
 
     const assistantMsgId = String(++msgIdCounter);
     
@@ -179,20 +251,32 @@ function DashboardPage() {
       if (!res.ok) throw new Error("Network error");
       
       const data = await res.json();
-      setMessages((prev) => 
-        prev.map((m) => m.id === assistantMsgId ? { ...m, content: data.reply } : m)
-      );
+      const completedMessages = [...updatedMessages, { ...loadingMsg, content: data.reply }];
+      messagesRef.current = completedMessages;
+      setMessages(completedMessages);
+      await persistConversation(completedMessages);
     } catch (e) {
       setMessages((prev) => 
         prev.map((m) => m.id === assistantMsgId ? { ...m, content: "Sorry, I ran into an error processing your message." } : m)
       );
     }
+  }, [persistConversation]);
+
+  const handleNewChat = useCallback(() => {
+    conversationIdRef.current = null;
+    messagesRef.current = [];
+    setMessages([]);
   }, []);
 
   return (
     <div className="relative min-h-screen text-foreground bg-background">
       <AuroraBackground />
-      <Sidebar />
+      <Sidebar
+        email={user?.email}
+        conversations={conversations}
+        loading={conversationsLoading}
+        onNewChat={handleNewChat}
+      />
 
       <div className="ml-[260px] flex flex-col h-screen relative z-10">
         <ChatArea messages={messages} />

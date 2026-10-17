@@ -10,77 +10,50 @@ Nodes:
 
 from __future__ import annotations
 
-import os
 from itertools import combinations
+from pathlib import Path
 from typing import Any, TypedDict
 
+import joblib
+import pandas as pd
 from dotenv import load_dotenv
-from langchain_core.tools import tool
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
 load_dotenv()
 
-# ── LLM ─────────────────────────────────────────────────────────────────────
-llm = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    temperature=0.7,
-)
+# ── Protein prediction model ───────────────────────────────────────────────
+MODEL_PATH = Path(__file__).resolve().parents[1] / "protein_predictor.joblib"
+_protein_model: Any | None = None
 
 
-# ── Protein Estimation Tool ────────────────────────────────────────────────
-NUTRITION_DB: dict[str, float] = {
-    # Non-veg
-    "chicken rice": 28, "chicken biryani": 30, "chicken curry": 25,
-    "butter chicken": 24, "tandoori chicken": 32, "egg omelette": 12,
-    "egg bhurji": 14, "boiled egg": 6, "fish fry": 22, "fish curry": 20,
-    "mutton curry": 26, "mutton biryani": 28, "prawn curry": 20,
-    "kebab": 18, "chicken tikka": 26, "egg roll": 10, "chicken roll": 20,
-    # Vegetarian
-    "paneer roll": 18, "paneer butter masala": 16, "paneer tikka": 20,
-    "palak paneer": 14, "shahi paneer": 15, "dal tadka": 12,
-    "dal makhani": 14, "rajma": 15, "chole": 13, "chole bhature": 14,
-    "soy chunks curry": 25, "tofu stir fry": 16, "idli": 4, "dosa": 5,
-    "masala dosa": 7, "upma": 5, "poha": 4, "vada pav": 6, "samosa": 4,
-    # Dairy & Drinks
-    "milk": 8, "lassi": 8, "curd": 6, "buttermilk": 4, "paneer salad": 14,
-    "cheese sandwich": 12, "protein shake": 25, "whey protein": 24,
-    # Snacks & Sides
-    "french fries": 3, "aloo tikki": 3, "bread pakora": 4, "pav bhaji": 8,
-    "pasta": 8, "maggi": 6, "fried rice": 6, "veg biryani": 8,
-    "roti": 3, "naan": 4, "paratha": 5, "rice": 3,
-    # Salads & Light
-    "green salad": 2, "sprouts salad": 12, "fruit salad": 2, "corn cup": 4,
-}
+def predict_protein(menu: list[FoodItem]) -> list[float]:
+    """Predict protein grams using the model's food and price features."""
+    global _protein_model
+    if _protein_model is None:
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Protein model not found at {MODEL_PATH}")
+        _protein_model = joblib.load(MODEL_PATH)
 
-
-@tool
-def estimate_protein(food_item: str) -> dict:
-    """Estimate the protein content (in grams) for a given food item.
-
-    Args:
-        food_item: Name of the food item (e.g., 'Chicken Rice', 'Paneer Roll')
-    """
-    key = food_item.strip().lower()
-    if key in NUTRITION_DB:
-        return {
-            "food_item": food_item,
-            "protein_grams": NUTRITION_DB[key],
-            "source": "built-in database",
+    features = pd.DataFrame([
+        {
+            "food_name": item["name"],
+            "category": item.get("category", "unknown"),
+            "price_inr": item["price"],
+            "serving_size_g": item.get("serving_size_g", 100.0),
         }
-    for db_key, protein in NUTRITION_DB.items():
-        if db_key in key or key in db_key:
-            return {
-                "food_item": food_item,
-                "protein_grams": protein,
-                "source": f"partial match with '{db_key}'",
-            }
-    return {
-        "food_item": food_item,
-        "protein_grams": 5,
-        "source": "default estimate (item not in database)",
-    }
+        for item in menu
+    ])
+    return [float(value) for value in _protein_model.predict(features)]
+
+
+def load_protein_model() -> None:
+    """Load the model before the first request rather than during optimization."""
+    global _protein_model
+    if _protein_model is None:
+        if not MODEL_PATH.exists():
+            raise FileNotFoundError(f"Protein model not found at {MODEL_PATH}")
+        _protein_model = joblib.load(MODEL_PATH)
 
 
 # ── State Schema ────────────────────────────────────────────────────────────
@@ -128,14 +101,11 @@ def parse_input(state: GraphState) -> dict[str, Any]:
 
 # ── Node 2: Estimate Protein via Tool ───────────────────────────────────────
 def estimate_protein_node(state: GraphState) -> dict[str, Any]:
-    """Call the protein estimation tool for each food item."""
+    """Predict protein for each food item with the trained joblib model."""
     protein_estimates: dict[str, float] = {}
-    for item in state["menu"]:
-        result = estimate_protein.invoke({"food_item": item["name"]})
-        if isinstance(result, dict):
-            protein_estimates[item["name"]] = result.get("protein_grams", 5)
-        else:
-            protein_estimates[item["name"]] = 5
+    predictions = predict_protein(state["menu"])
+    for item, protein in zip(state["menu"], predictions):
+        protein_estimates[item["name"]] = protein
     return {"protein_estimates": protein_estimates}
 
 
@@ -172,60 +142,63 @@ def optimize(state: GraphState) -> dict[str, Any]:
     }
 
 
-# ── Node 4: Recommend via LLM ───────────────────────────────────────────────
+# ── Node 4: Build final recommendation ──────────────────────────────────────
 def recommend(state: GraphState) -> dict[str, Any]:
-    """Use the LLM to create a human-friendly recommendation."""
-    menu = state["menu"]
+    """Build an immediate prose recommendation from the model output."""
     budget = state["budget"]
     protein_target = state["protein_target"]
-    protein_estimates = state["protein_estimates"]
     valid_combinations = state["valid_combinations"]
     best = state["best_combination"]
 
-    menu_table = "\n".join(
-        f"  - {item['name']}: ₹{item['price']}, ~{protein_estimates.get(item['name'], '?')}g protein"
-        for item in menu
+    if not best:
+        return {
+            "recommendation": (
+                f"I looked through your menu, but there is no combination within your budget of ₹{budget:.0f}. "
+                f"Try increasing your budget or lowering the protein target of {protein_target:.0f}g so I can find a suitable option."
+            )
+        }
+
+    total_cost = best["total_cost"]
+    total_protein = best["total_protein"]
+    best_items = best["items"]
+    if len(best_items) == 1:
+        items_text = best_items[0]
+    elif len(best_items) == 2:
+        items_text = f"{best_items[0]} and {best_items[1]}"
+    else:
+        items_text = ", ".join(best_items[:-1]) + f", and {best_items[-1]}"
+
+    protein_difference = total_protein - protein_target
+    budget_left = budget - total_cost
+    goal_text = (
+        f"That meets your protein target by {protein_difference:.1f}g."
+        if protein_difference >= 0
+        else f"That leaves you {abs(protein_difference):.1f}g short of your protein target."
     )
 
-    combos_text = ""
-    for i, combo in enumerate(valid_combinations[:5], 1):
-        items_str = " + ".join(combo["items"])
-        combos_text += f"  {i}. {items_str} → ₹{combo['total_cost']}, {combo['total_protein']}g protein\n"
-
-    best_text = "None found within budget." if not best else (
-        f"Items: {', '.join(best['items'])}\n"
-        f"Total Cost: ₹{best['total_cost']}\n"
-        f"Total Protein: {best['total_protein']}g"
+    recommendation = (
+        "I looked through your menu and found the best combination for your goal.\n\n"
+        f"Your best option is {items_text}. Together, that costs ₹{total_cost:.0f} and provides "
+        f"{total_protein:.1f}g of predicted protein. {goal_text}\n\n"
+        f"You will have ₹{budget_left:.0f} left from your budget of ₹{budget:.0f}. "
+        "This is the strongest protein option available within your budget."
     )
 
-    prompt = f"""You are a nutrition advisor AI. Based on the analysis below, provide a clear,
-friendly recommendation to the user.
+    if len(valid_combinations) > 1:
+        alternative = valid_combinations[1]
+        alternative_items = " and ".join(alternative["items"])
+        recommendation += (
+            f" Another available choice is {alternative_items}, which costs ₹{alternative['total_cost']:.0f} "
+            f"and provides {alternative['total_protein']:.1f}g of protein."
+        )
 
-CRITICAL INSTRUCTION: KEEP YOUR RESPONSE EXTREMELY CONCISE. Provide only 2 or 3 short sentences. No long paragraphs or bulleted lists!
-State if they met the target, and suggest the best option or a quick alternative if not found.
-
-=== USER INPUT ===
-Budget: ₹{budget}
-Protein Target: {protein_target}g
-
-=== MENU WITH PROTEIN ESTIMATES ===
-{menu_table}
-
-=== TOP COMBINATIONS (within budget) ===
-{combos_text if combos_text else "No valid combinations found within budget."}
-
-=== BEST COMBINATION ===
-{best_text}
-
-Provide the recommendation now:"""
-
-    response = llm.invoke(prompt)
-    return {"recommendation": response.content}
+    return {"recommendation": recommendation}
 
 
 # ── Build the Graph ─────────────────────────────────────────────────────────
 def build_graph():
     """Build and compile the LangGraph workflow."""
+    load_protein_model()
     workflow = StateGraph(GraphState)
 
     workflow.add_node("parse_input", parse_input)

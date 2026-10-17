@@ -68,6 +68,52 @@ export async function loginApi(input: { email: string; password: string }) {
   return data;
 }
 
+export type ConversationSummary = {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ConversationMessage = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+export async function listConversationsApi(email: string) {
+  const data = await request<{ conversations: ConversationSummary[] }>(
+    `/api/conversations?email=${encodeURIComponent(email)}`,
+  );
+  return data.conversations;
+}
+
+export async function createConversationApi(input: {
+  email: string;
+  title: string;
+  messages: ConversationMessage[];
+}) {
+  return request<{ id: string; createdAt: string; updatedAt: string }>("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateConversationApi(input: {
+  id: string;
+  email: string;
+  title: string;
+  messages: ConversationMessage[];
+}) {
+  return request<{ ok: true; updatedAt: string }>(`/api/conversations/${input.id}`, {
+    method: "PUT",
+    body: JSON.stringify({
+      email: input.email,
+      title: input.title,
+      messages: input.messages,
+    }),
+  });
+}
+
 export async function saveProjectApi(payload: {
   title: string;
   summary?: string;

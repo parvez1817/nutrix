@@ -11,7 +11,7 @@ import { Reveal } from "@/components/site/Reveal";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vizly Studio — Turn Data into Intelligent Visual Stories" },
+      { title: "nutriX Restro — Turn Data into Intelligent Visual Stories" },
       {
         name: "description",
         content:
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/")({
       },
       {
         property: "og:title",
-        content: "Vizly Studio — Turn Data into Intelligent Visual Stories",
+        content: "nutriX Restro — Turn Data into Intelligent Visual Stories",
       },
       {
         property: "og:description",

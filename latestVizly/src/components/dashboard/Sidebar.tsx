@@ -1,31 +1,12 @@
 import { useState } from "react";
-import { MessageSquare, SquarePen, Search, EllipsisVertical } from "lucide-react";
-import { Link } from "@tanstack/react-router";
+import { EllipsisVertical, LogOut, Search, SquarePen } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/use-auth";
 
-type ChatHistoryItem = {
-  id: string;
-  title: string;
-  active?: boolean;
-};
+import type { ConversationSummary } from "@/lib/api";
 
-const todayChats: ChatHistoryItem[] = [
-  { id: "1", title: "Nutrition Analysis Report", active: true },
-  { id: "2", title: "Calorie Tracking Breakdown" },
-  { id: "3", title: "Protein-Rich Meal Suggestions" },
-];
-
-const previousChats: ChatHistoryItem[] = [
-  { id: "4", title: "Weekly Meal Prep Ideas" },
-  { id: "5", title: "Macronutrient Ratios Guide" },
-  { id: "6", title: "Budget-Friendly Recipes" },
-  { id: "7", title: "Vitamin Deficiency Check" },
-  { id: "8", title: "Hydration Tracking Tips" },
-  { id: "9", title: "Post-Workout Recovery Foods" },
-  { id: "10", title: "Seasonal Produce Guide" },
-  { id: "11", title: "Food Allergy Alternatives" },
-  { id: "12", title: "Mediterranean Diet Overview" },
-];
+type ChatHistoryItem = ConversationSummary & { active?: boolean };
 
 const ChatItem = ({ chat }: { chat: ChatHistoryItem }) => {
   const [hovered, setHovered] = useState(false);
@@ -50,14 +31,46 @@ const ChatItem = ({ chat }: { chat: ChatHistoryItem }) => {
   );
 };
 
-export const Sidebar = () => {
+type SidebarProps = {
+  email?: string;
+  conversations: ConversationSummary[];
+  loading?: boolean;
+  onNewChat: () => void;
+};
+
+export const Sidebar = ({ email, conversations, loading, onNewChat }: SidebarProps) => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const today = new Date().toDateString();
+  const todayChats: ChatHistoryItem[] = conversations
+    .filter((chat) => new Date(chat.updatedAt).toDateString() === today)
+    .map((chat, index) => ({ ...chat, active: index === 0 }));
+  const previousChats = conversations.filter(
+    (chat) => new Date(chat.updatedAt).toDateString() !== today,
+  );
+  const accountName = user?.name || email || "User";
+  const initials = accountName
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "U";
+
+  const handleLogout = () => {
+    setAccountMenuOpen(false);
+    logout();
+    navigate({ to: "/" });
+  };
+
   return (
     <aside className="fixed left-0 top-0 h-full w-[260px] bg-[oklch(0.15_0.012_265)] flex flex-col z-40">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-2">
         <Link to="/" className="flex items-center gap-2 group">
           <span className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
-            Vizly Studio
+            nutriX Restro
           </span>
         </Link>
         <div className="flex items-center gap-1">
@@ -70,6 +83,7 @@ export const Sidebar = () => {
           </button>
           <button
             type="button"
+            onClick={onNewChat}
             className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-all"
             aria-label="New chat"
           >
@@ -86,6 +100,10 @@ export const Sidebar = () => {
             Today
           </div>
           <div className="space-y-0.5">
+            {loading && <p className="px-3 py-2 text-xs text-muted-foreground">Loading conversations...</p>}
+            {!loading && todayChats.length === 0 && (
+              <p className="px-3 py-2 text-xs text-muted-foreground">No conversations yet</p>
+            )}
             {todayChats.map((chat) => (
               <ChatItem key={chat.id} chat={chat} />
             ))}
@@ -106,16 +124,51 @@ export const Sidebar = () => {
       </nav>
 
       {/* User Profile */}
-      <div className="p-3 border-t border-border">
-        <button
-          type="button"
-          className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-accent/30 transition-all"
-        >
-          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-primary to-primary-glow flex items-center justify-center text-[11px] font-bold text-primary-foreground shrink-0">
-            PA
+      <div className="relative border-t border-border p-3">
+        <div className="flex items-center gap-2 rounded-lg p-2.5 hover:bg-accent/30 transition-all">
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={accountName}
+              className="h-8 w-8 shrink-0 rounded-full object-cover"
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-glow text-[11px] font-bold text-primary-foreground">
+              {initials}
+            </div>
+          )}
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-foreground" title={email}>
+            {email || "Not signed in"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setAccountMenuOpen((open) => !open)}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-secondary/70 hover:text-foreground"
+            aria-label="Open account menu"
+            aria-expanded={accountMenuOpen}
+            aria-haspopup="menu"
+          >
+            <EllipsisVertical className="h-4 w-4" />
+          </button>
+        </div>
+
+        {accountMenuOpen && (
+          <div
+            role="menu"
+            className="absolute bottom-16 right-3 left-3 z-50 rounded-lg border border-border bg-popover p-1 shadow-xl"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              <LogOut className="h-4 w-4" />
+              Log out
+            </button>
           </div>
-          <span className="text-sm font-medium text-foreground truncate">Parvez Ahamed</span>
-        </button>
+        )}
       </div>
     </aside>
   );

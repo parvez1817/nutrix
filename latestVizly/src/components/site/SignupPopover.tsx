@@ -72,7 +72,7 @@ export function SignupPopover({ open, onClose }: SignupPopoverProps) {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Create your Vizly Studio account"
+        aria-label="Create your nutriX Restro account"
         className="fixed right-4 top-20 z-50 w-[min(92vw,22rem)] origin-top-right animate-in fade-in slide-in-from-top-2 duration-200"
       >
         <div className="glass-card relative overflow-hidden rounded-2xl p-6 shadow-2xl">
@@ -99,7 +99,7 @@ export function SignupPopover({ open, onClose }: SignupPopoverProps) {
                   Create your studio
                 </h2>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  To use Vizly Studio you must log into an existing account or
+                  To use nutriX Restro you must log into an existing account or
                   create one using one of the options below
                 </p>
               </div>
@@ -143,7 +143,7 @@ export function SignupPopover({ open, onClose }: SignupPopoverProps) {
                   onClick={onClose}
                   className="font-medium text-primary transition-colors hover:text-primary-glow"
                 >
-                  Login to Vizly Studio
+                  Login to nutriX Restro
                 </Link>
               </div>
             </div>
@@ -163,7 +163,7 @@ export function SignupPopover({ open, onClose }: SignupPopoverProps) {
                   Sign up with email
                 </h2>
                 <p className="mt-1.5 text-xs text-muted-foreground">
-                  Create your free Vizly Studio account
+                  Create your free nutriX Restro account
                 </p>
               </div>
 
@@ -243,7 +243,7 @@ export function SignupPopover({ open, onClose }: SignupPopoverProps) {
                   onClick={onClose}
                   className="font-medium text-primary transition-colors hover:text-primary-glow"
                 >
-                  Login to Vizly Studio
+                  Login to nutriX Restro
                 </Link>
               </div>
             </div>

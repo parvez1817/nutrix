@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { LogOut, Settings, UserCog, Users, X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut, Users, X } from "lucide-react";
 import type { AuthUser } from "@/hooks/use-auth";
 
 interface UserMenuProps {
@@ -10,6 +11,7 @@ interface UserMenuProps {
 export function UserMenu({ user, onSignOut }: UserMenuProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const navigate = useNavigate();
 
   // Close on outside click + Escape
   useEffect(() => {
@@ -83,7 +85,7 @@ export function UserMenu({ user, onSignOut }: UserMenuProps) {
 
             <div className="relative text-center">
               <h2 className="text-lg font-semibold tracking-tight text-foreground">
-                {user.provider === "google" ? "Google" : "Vizly Studio"}
+                {user.provider === "google" ? "Google" : "nutriX Restro"}
               </h2>
             </div>
 
@@ -113,9 +115,15 @@ export function UserMenu({ user, onSignOut }: UserMenuProps) {
             </div>
 
             <div className="relative mt-5 space-y-2.5">
-              <MenuButton icon={<Settings className="h-4 w-4" />} label="Studio Settings" />
-              <MenuButton icon={<UserCog className="h-4 w-4" />} label="Manage Account" />
-              <MenuButton icon={<Users className="h-4 w-4" />} label="Switch Account" />
+              <MenuButton
+                icon={<Users className="h-4 w-4" />}
+                label="Switch Account"
+                onClick={() => {
+                  setOpen(false);
+                  onSignOut();
+                  navigate({ to: "/login" });
+                }}
+              />
               <MenuButton
                 icon={<LogOut className="h-4 w-4" />}
                 label="Sign out"

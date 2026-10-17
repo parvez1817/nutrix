@@ -19,9 +19,12 @@ dependencies = [
     "langchain-mcp-adapters>=0.1.0",
     "langgraph>=1.2.11",
     "httpx>=0.28.0",
+    "motor>=3.7.1",
     "mcp>=1.0.0",
+    "pandas>=2.2.3",
     "pypdf>=6.17.0",
     "python-dotenv>=1.2.3",
+    "scikit-learn==1.6.1",
     "sentence-transformers>=6.0.1",
     "uvicorn>=0.52.4",
 ]

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from datetime import datetime, timezone
 import json
 import os
 import sys
@@ -16,14 +17,16 @@ import uuid
 import bcrypt
 
 import motor.motor_asyncio
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from pymongo.errors import PyMongoError
 
-# Ensure project root is importable
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Ensure the project root, which contains the sibling graph package, is importable.
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -32,6 +35,14 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 load_dotenv()
 
 app = FastAPI(title="NutriX API")
+
+
+@app.exception_handler(PyMongoError)
+async def handle_database_error(request: Request, exc: PyMongoError):
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database unavailable. Check MONGO_URI and MongoDB network access."},
+    )
 
 app.add_middleware(
     CORSMiddleware,
@@ -65,6 +76,12 @@ class OptimizeRequest(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[dict]
     context: dict | None = None
+
+
+class ConversationRequest(BaseModel):
+    email: str
+    title: str = "New conversation"
+    messages: list[dict] = Field(default_factory=list)
 
 
 # ── LLM for image recognition ──────────────────────────────────────────────
@@ -104,18 +121,29 @@ async def optimize(request: OptimizeRequest):
 
         language = request.language
 
-        # Stream status messages with delays for UX
+        async def graph_events():
+            try:
+                async for graph_event in graph.astream(user_input, config=config):
+                    yield graph_event
+            except Exception:
+                yield {"__error__": True}
+
+        # Stream status messages without adding artificial latency.
         yield sse_event("status", {"step": "typing", "message": "🔍 Typing..."})
-        await asyncio.sleep(0.6)
 
         yield sse_event("status", {"step": "validating", "message": "✅ Validating your input..."})
-        await asyncio.sleep(0.4)
 
-        async for event in graph.astream(user_input, config=config):
+        async for event in graph_events():
+            if event.get("__error__"):
+                yield sse_event(
+                    "error",
+                    "The AI service is unavailable. Replace GOOGLE_API_KEY in backend/.env with a new valid Google AI key.",
+                )
+                return
+
             for node_name, node_output in event.items():
                 if node_name == "parse_input":
                     yield sse_event("status", {"step": "analyzing", "message": "🧬 Analyzing protein content..."})
-                    await asyncio.sleep(0.5)
 
                 elif node_name == "estimate_protein":
                     estimates = node_output.get("protein_estimates", {})
@@ -123,7 +151,6 @@ async def optimize(request: OptimizeRequest):
                         "estimates": {k: v for k, v in estimates.items()},
                     })
                     yield sse_event("status", {"step": "optimizing", "message": "📊 Finding best combinations..."})
-                    await asyncio.sleep(0.5)
 
                 elif node_name == "optimize":
                     combos = node_output.get("valid_combinations", [])
@@ -133,7 +160,6 @@ async def optimize(request: OptimizeRequest):
                         "best": best,
                     })
                     yield sse_event("status", {"step": "preparing", "message": "🤖 Preparing AI recommendation..."})
-                    await asyncio.sleep(0.3)
 
                 elif node_name == "recommend":
                     recommendation = node_output.get("recommendation", "")
@@ -141,7 +167,6 @@ async def optimize(request: OptimizeRequest):
                     # If language is not English, translate the recommendation
                     if language.lower() != "english":
                         yield sse_event("status", {"step": "translating", "message": f"🌐 Translating to {language}..."})
-                        await asyncio.sleep(0.3)
                         translate_llm = ChatGoogleGenerativeAI(
                             model="gemini-2.5-flash", temperature=0.3
                         )
@@ -237,9 +262,12 @@ async def recognize_food(file: UploadFile = File(...)):
 
 # ── Auth endpoints ─────────────────────────────────────────────────────────
 
-client = motor.motor_asyncio.AsyncIOMotorClient("mongodb://127.0.0.1:27017")
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    os.environ["MONGO_URI"], serverSelectionTimeoutMS=5000
+)
 db = client.nutriX
 users_collection = db.users
+conversations_collection = db.conversations
 
 @app.post("/api/auth/signup")
 async def register(req: SignupRequest):
@@ -273,6 +301,67 @@ async def login_route(req: LoginRequest):
         "token": str(uuid.uuid4()),
         "user": {"email": user["email"], "name": user.get("name", "")}
     }
+
+
+@app.get("/api/conversations")
+async def list_conversations(email: str = Query(..., min_length=3)):
+    """Return the signed-in user's saved conversations, newest first."""
+    conversations = conversations_collection.find(
+        {"email": email.strip().lower()},
+        {"messages": 0},
+    ).sort("updatedAt", -1)
+    return {
+        "conversations": [
+            {
+                "id": str(conversation["_id"]),
+                "title": conversation.get("title", "New conversation"),
+                "createdAt": conversation.get("createdAt"),
+                "updatedAt": conversation.get("updatedAt"),
+            }
+            async for conversation in conversations
+        ]
+    }
+
+
+@app.post("/api/conversations")
+async def create_conversation(req: ConversationRequest):
+    """Create a conversation owned by the supplied email address."""
+    now = datetime.now(timezone.utc)
+    result = await conversations_collection.insert_one({
+        "email": req.email.strip().lower(),
+        "title": req.title.strip() or "New conversation",
+        "messages": req.messages,
+        "createdAt": now,
+        "updatedAt": now,
+    })
+    return {"id": str(result.inserted_id), "createdAt": now, "updatedAt": now}
+
+
+@app.put("/api/conversations/{conversation_id}")
+async def update_conversation(conversation_id: str, req: ConversationRequest):
+    """Update messages only when the conversation belongs to the supplied email."""
+    from bson import ObjectId
+
+    if not ObjectId.is_valid(conversation_id):
+        raise HTTPException(status_code=400, detail="Invalid conversation id")
+
+    now = datetime.now(timezone.utc)
+    result = await conversations_collection.update_one(
+        {
+            "_id": ObjectId(conversation_id),
+            "email": req.email.strip().lower(),
+        },
+        {
+            "$set": {
+                "title": req.title.strip() or "New conversation",
+                "messages": req.messages,
+                "updatedAt": now,
+            }
+        },
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return {"ok": True, "updatedAt": now}
 
 # ── Serve static files (frontend) ──────────────────────────────────────────
 static_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist")
